@@ -935,3 +935,37 @@ class DalleDataloader(VisionDataloader):
 
 class AlpacaDataloader(LmDataloader):
     pass
+
+
+class RewardDataloader(Dataloader):
+    def __iter__(self):
+        while True:
+            while self._empty():
+                self._fill_buf()
+            if self.start + self.batch_size >= self.end:
+                instances = self.buffer[self.start:]
+            else:
+                instances = self.buffer[self.start: self.start + self.batch_size]
+
+            self.start += self.batch_size
+
+            src1 = []
+            seg1 = []
+            src2 = []
+            seg2 = []
+
+            for ins in instances:
+                src1_single, src2_single, pad_num1, pad_num2 = ins
+                seg1.append([1] * len(src1_single) + [0] * pad_num1)
+                seg2.append([1] * len(src2_single) + [0] * pad_num2)
+                for _ in range(pad_num1):
+                    src1_single.append(self.vocab.get(PAD_TOKEN))
+                for _ in range(pad_num2):
+                    src2_single.append(self.vocab.get(PAD_TOKEN))
+                src1.append(src1_single)
+                src2.append(src2_single)
+
+            yield torch.LongTensor(src1), \
+                torch.LongTensor(src2), \
+                torch.LongTensor(seg1), \
+                torch.LongTensor(seg2)

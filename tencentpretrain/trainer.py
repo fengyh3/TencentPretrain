@@ -553,12 +553,50 @@ class AlpacaTrainer(LmTrainer):
     pass
 
 
+class RewardTrainer(Trainer):
+    def __init__(self, args):
+        super(RewardTrainer, self).__init__(args)
+        self.total_instances = 0
+        self.total_correct = 0.0
+        self.args = args
+
+    def forward_propagation(self, batch, model):
+        src1, src2, seg1, seg2 = batch
+        logit1 = model(src1, None, seg1)
+        logit2 = model(src2, None, seg2)
+        loss = -torch.nn.functional.logsigmoid(logit1 - logit2).mean()
+        self.total_loss += loss.item()
+        self.total_correct += (logit1 > logit2).sum().item()
+        self.total_instances += src1.size(0)
+        loss = loss / self.accumulation_steps
+
+        return loss
+
+    def report_and_reset_stats(self):
+        done_tokens = self.batch_size * self.seq_length * self.report_steps
+        if self.dist_train:
+            done_tokens *= self.world_size
+
+        self.logger.info("| {:8d}/{:8d} steps"
+                         "| {:8.2f} tokens/s"
+                         "| loss {:7.2f}"
+                         "| acc {:3.3f}".format(
+            self.current_step,
+            self.total_steps,
+            done_tokens / (time.time() - self.start_time),
+            self.total_loss / self.report_steps,
+            self.total_correct / self.total_instances))
+
+        self.total_loss, self.total_instances, self.total_correct = 0.0, 0.0, 0.0
+
+
 str2trainer = {"bert": BertTrainer, "mlm": MlmTrainer, "lm": LmTrainer,
                "albert": AlbertTrainer, "bilm": BilmTrainer, "cls": ClsTrainer,
                "mt": MtTrainer, "t5": T5Trainer, "gsg": GsgTrainer,
                "bart": BartTrainer, "prefixlm": PrefixlmTrainer, "cls_mlm": ClsMlmTrainer,
                "vit": VitTrainer, "vilt": ViltTrainer, "clip": ClipTrainer, "s2t": S2tTrainer,
-               "beit": BeitTrainer, "dalle": DalleTrainer, "alpaca": AlpacaTrainer}
+               "beit": BeitTrainer, "dalle": DalleTrainer, "alpaca": AlpacaTrainer,
+               "reward": RewardTrainer}
 
 
 def worker(proc_id, gpu_ranks, args, model_for_training, model_for_dataloader=None):
