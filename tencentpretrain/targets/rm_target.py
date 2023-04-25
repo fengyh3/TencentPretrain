@@ -25,8 +25,8 @@ class RewardTarget(nn.Module):
             correct: Number of sentences that are predicted correctly.
         """
 
-        output = self.linear_1(memory_bank)
-        seg = seg.sum().reshape(-1, 1)
+        output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
+        seg = seg.sum(dim=1).reshape(-1, 1).long() - 1
         loss = torch.gather(output, dim=1, index=seg)
 
         return loss
