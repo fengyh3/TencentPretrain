@@ -629,12 +629,21 @@ def worker(proc_id, gpu_ranks, args, model_for_training, model_for_dataloader=No
     # Build optimizer.
     param_optimizer = list(model_for_training.named_parameters())
     if args.use_lora:
-        optimizer_grouped_parameters = [
-            {"params": [p for n, p in param_optimizer if 'lora' in n]}
-        ]
-        for n, p in list(model_for_training.named_parameters()):
-            if 'lora' not in n:
+        optimizer_name = ['lora', ]
+        if 'rm' in args.target:
+            optimizer_name.append("target")
+        optimizer_grouped_parameters = []
+        for n, p in param_optimizer:
+            flag = False
+            for op_n in optimizer_name:
+                if op_n in n:
+                    optimizer_grouped_parameters.append(p)
+                    flag = True
+                    break
+            if not flag:
                 p.requires_grad = False
+        optimizer_grouped_parameters = [{"params": optimizer_grouped_parameters}]
+
     else:
         no_decay = ["bias", "gamma", "beta"]
         optimizer_grouped_parameters = [

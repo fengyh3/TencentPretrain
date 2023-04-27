@@ -24,9 +24,10 @@ class RewardTarget(nn.Module):
             loss: Classification loss.
             correct: Number of sentences that are predicted correctly.
         """
-
+        # output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
+        # seg = seg.sum(dim=1).reshape(-1, 1).long() - 1
+        # loss = torch.gather(output, dim=1, index=seg)
         output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
-        seg = seg.sum(dim=1).reshape(-1, 1).long() - 1
-        loss = torch.gather(output, dim=1, index=seg)
+        loss = (output * seg).sum(dim=1) / seg.sum(dim=1)
 
         return loss
