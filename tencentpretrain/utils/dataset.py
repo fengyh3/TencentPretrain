@@ -1014,7 +1014,7 @@ class AlpacaDataset(Dataset):
 
 
 class RewardDataset(Dataset):
-    """For self-instruct in json files (Stanford Alpaca)"""
+    """For Reward Model in RLHF."""
     def worker(self, proc_id, start, end):
         print("Worker %d is building dataset ... " % proc_id)
         set_seed(self.seed)
@@ -1047,6 +1047,37 @@ class RewardDataset(Dataset):
                 pad_num2 = self.seq_length - len(document2)
 
                 pickle.dump((document1, document2, pad_num1, pad_num2), dataset_writer)
+
+                if pos >= end:
+                    break
+
+        dataset_writer.close()
+
+class PPODataset(Dataset):
+    """For PPO in RLHF."""
+    def worker(self, proc_id, start, end):
+        print("Worker %d is building dataset ... " % proc_id)
+        set_seed(self.seed)
+        dataset_writer = open("dataset-tmp-" + str(proc_id) + ".pt", "wb")
+        pos = 0
+        with open(self.corpus_path, mode="r", encoding="utf-8") as f:
+            while pos < start:
+                f.readline()
+                pos += 1
+            while True:
+                line = f.readline()
+                pos += 1
+                data = json.loads(line)
+
+                prompts = data.get("prompts", "").replace('\\n', '\n')
+
+                prompts = self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(prompts))
+                prompts = [self.vocab.get(CLS_TOKEN)] + prompts
+
+                if len(prompts) > self.seq_length:
+                    prompts = prompts[:self.seq_length]
+
+                pickle.dump(prompts, dataset_writer)
 
                 if pos >= end:
                     break

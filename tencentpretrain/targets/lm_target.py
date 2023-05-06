@@ -25,20 +25,16 @@ class LmTarget(nn.Module):
         self.softmax = nn.LogSoftmax(dim=-1)
         self.criterion = nn.NLLLoss()
 
-    def logits(self, memory_bank, seg):
-        seg = seg.contiguous().view(-1)
-        memory_bank = memory_bank.contiguous().view(-1, self.hidden_size)
-        memory_bank = memory_bank[seg > 0, :]
-        output = self.output_layer(memory_bank)
-        output = self.softmax(output)
-        return output
-
     def lm(self, memory_bank, tgt_lm, seg):
         # Language modeling (LM) with full softmax prediction.
 
         tgt_lm = tgt_lm.contiguous().view(-1)
+        seg = seg.contiguous().view(-1)
+        memory_bank = memory_bank.contiguous().view(-1, self.hidden_size)
+        memory_bank = memory_bank[seg > 0, :]
         tgt_lm = tgt_lm[seg > 0]
-        output = self.logits(memory_bank, seg)
+        output = self.output_layer(memory_bank)
+        output = self.softmax(output)
         denominator = torch.tensor(output.size(0) + 1e-6)
         if output.size(0) == 0:
             correct = torch.tensor(0.0)

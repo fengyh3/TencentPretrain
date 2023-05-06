@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-from tencentpretrain.utils.misc import pooling
 
 
 class RewardTarget(nn.Module):
@@ -27,7 +25,9 @@ class RewardTarget(nn.Module):
         # output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
         # seg = seg.sum(dim=1).reshape(-1, 1).long() - 1
         # loss = torch.gather(output, dim=1, index=seg)
-        output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
-        loss = (output * seg).sum(dim=1) / seg.sum(dim=1)
 
-        return loss
+        # output = self.linear_1(memory_bank).reshape(-1, memory_bank.shape[1])
+        # loss = (output * seg).sum(dim=1) / seg.sum(dim=1)
+        logits = self.linear_1(memory_bank).squeeze(-1)
+
+        return logits

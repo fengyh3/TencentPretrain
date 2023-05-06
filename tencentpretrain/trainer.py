@@ -564,6 +564,10 @@ class RewardTrainer(Trainer):
         src1, src2, seg1, seg2 = batch
         logit1 = model(src1, None, seg1)
         logit2 = model(src2, None, seg2)
+        seg1 = seg1.sum(dim=1).reshape(-1, 1).long() - 1
+        seg2 = seg2.sum(dim=1).reshape(-1, 1).long() - 1
+        logit1 = torch.gather(logit1, dim=1, index=seg1)
+        logit2 = torch.gather(logit2, dim=1, index=seg2)
         loss = -torch.nn.functional.logsigmoid(logit1 - logit2).mean()
         self.total_loss += loss.item()
         self.total_correct += (logit1 > logit2).sum().item()
