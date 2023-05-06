@@ -1,6 +1,8 @@
 import argparse
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from tencentpretrain.utils import str2tokenizer, str2dataloader
-from tencentpretrain.utils.config import load_hyperparam
 from tencentpretrain.opts import *
 from tencentpretrain.utils.seed import set_seed
 from rlhf.RLHFEngine import RLHFEngine
@@ -113,6 +115,14 @@ def main():
 
     # Log options.
     log_opts(parser)
+
+    # unused settings.
+    parser.add_argument("--whole_word_masking", action="store_true", help="Whole word masking.")
+    parser.add_argument("--span_masking", action="store_true", help="Span masking.")
+    parser.add_argument("--span_geo_prob", type=float, default=0.2,
+                        help="Hyperparameter of geometric distribution for span masking.")
+    parser.add_argument("--span_max_length", type=int, default=10,
+                        help="Max length for span masking.")
 
     args = parser.parse_args()
 

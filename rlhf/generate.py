@@ -84,7 +84,7 @@ def generate(model, args, prompt_tokens, eos_id, pad_id):
     with torch.no_grad():
         for cur_pos in range(start_pos, total_len):
             logits = model(tokens[continue_example, :cur_pos], None,
-                           mask[continue_example, :cur_pos]).float()[:, -1, :]
+                           mask[continue_example, :cur_pos], return_logits=True).float()[:, -1, :]
             next_token_scores = apply_top_k(logits, top_k=args.top_k)
             next_token_scores = apply_top_p(next_token_scores, args.top_p)
             next_token_scores = apply_temperature(next_token_scores, args.temperature)

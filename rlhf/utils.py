@@ -1,4 +1,8 @@
 import torch
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 from tencentpretrain.model_builder import build_model
 from tencentpretrain.model_loader import load_model, _load_state_dict_into_model
 from tencentpretrain.utils import *
@@ -7,7 +11,7 @@ from tencentpretrain.embeddings import *
 from tencentpretrain.encoders import *
 from tencentpretrain.decoders import *
 from tencentpretrain.targets import *
-from tencentpretrain.models.model import Model
+from rlhf.model import Model
 import sys
 import json
 from argparse import Namespace
@@ -31,6 +35,7 @@ def load_hyperparam(default_args, config_path):
     args = Namespace(**default_args_dict)
 
     return args
+
 
 def build_model(args, target_name):
     embedding = Embedding(args)
@@ -57,8 +62,10 @@ def build_model(args, target_name):
         decoder = None
 
     target = Target()
-    tmp_target = str2target[target_name](args, len(args.tokenizer.vocab))
-    target.update(tmp_target, target_name)
+    for tn in target_name:
+        tmp_target = str2target[tn](args, len(args.tokenizer.vocab))
+        target.update(tmp_target, tn)
+
     model = Model(args, embedding, encoder, tgt_embedding, decoder, target)
 
     return model
@@ -105,11 +112,11 @@ def get_scheduler(args, optimizer):
     if args.scheduler in ["constant"]:
         custom_scheduler = str2scheduler[args.scheduler](optimizer)
     elif args.scheduler in ["constant_with_warmup"]:
-        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps*args.warmup)
+        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps * args.warmup)
     elif args.scheduler in ["tri_stage"]:
-        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps*args.warmup,
-                                                         args.total_steps*args.decay, args.total_steps)
+        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps * args.warmup,
+                                                         args.total_steps * args.decay, args.total_steps)
     else:
-        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps*args.warmup, args.total_steps)
+        custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps * args.warmup, args.total_steps)
 
     return custom_scheduler

@@ -20,8 +20,8 @@ class RLHFEngine:
         self.args = load_hyperparam(self.args, self.args.actor_config_path)
         self.args.deepspeed_config = self.args.actor_deepspeed_config
         actor_model = build_and_load(self.args, self.args.actor_target, deepspeed_config=self.args.actor_deepspeed_config,
-                                     pretrained_model_path=self.args.action_pretrained_model_path,
-                                     lora_pretrained_model_path=self.args.action_lora_pretrained_model_path)
+                                     pretrained_model_path=self.args.actor_pretrained_model_path,
+                                     lora_pretrained_model_path=self.args.actor_lora_pretrained_model_path)
         # get optimizer parameters.
         optimizer_grouped_parameters = get_optimizer_grouped_parameters(self.args, actor_model)
 

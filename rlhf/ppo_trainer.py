@@ -52,8 +52,8 @@ class PPOTrainer:
         mask = (seq != pad_id).long()
         prompt_len = prompts.shape[1]
         with torch.no_grad():
-            actor_output = self.rlhf_engine.actor_model(seq, None, mask)
-            ref_output = self.rlhf_engine.ref_model(seq, None, mask)
+            actor_output = self.rlhf_engine.actor_model(seq, None, mask, return_logits=True)
+            ref_output = self.rlhf_engine.ref_model(seq, None, mask, return_logits=True)
             reward_output = self.rlhf_engine.reward_model(seq, None, mask)[:, prompt_len:]
             seg = mask[:, prompt_len:].sum(dim=1).reshape(-1, 1).long() - 1
             reward_output = torch.gather(reward_output, dim=1, index=seg)
@@ -110,7 +110,7 @@ class PPOTrainer:
                 advantages, returns = self.get_advantages_and_returns(ans_start, old_values, old_rewards)
 
             # compute actor loss
-            actor_probs = self.rlhf_engine.actor_model(seq, None, attention_mask)
+            actor_probs = self.rlhf_engine.actor_model(seq, None, attention_mask, return_logits=True)
             actor_log_probs = gather_log_probs(actor_probs[:, :-1, :], seq[:, 1:])
             actor_loss = self.actor_loss(actor_log_probs[:, ans_start:], log_probs[:, ans_start:],
                                          advantages, action_mask[:, ans_start])
@@ -129,8 +129,8 @@ class PPOTrainer:
             # compute ptx
             if self.unsupervised_train_loader is not None:
                 src, tgt, seg = unsupervised_batch
-                pretrained_logits = self.rlhf_engine.actor_model(src, tgt, seg)
-                pretrained_loss = self.args.unsup_coef * self.lm_loss(pretrained_logits, tgt, seg)
+                pretrained_loss = self.rlhf_engine.actor_model(src, tgt, seg)
+                pretrained_loss = self.args.unsup_coef * pretrained_loss
                 self.rlhf_engine.actor_model.backward(pretrained_loss)
                 self.rlhf_engine.actor_model.step()
                 self.pretrained_loss += pretrained_loss.item()
