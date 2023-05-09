@@ -22,8 +22,7 @@
           "device": "cpu",
           "pin_memory": true
       },
-      "stage3_param_persistence_threshold": 1e-4,
-      "memory_efficient_linear": false
+      "stage3_param_persistence_threshold": 1e-4
   },
   "activation_checkpointing": {
       "partition_activations": false,

@@ -14,12 +14,14 @@ class RLHFEngine:
         self.critic_model = self.build_critic()
         self.ref_model = self.build_reference()
         self.reward_model = self.build_reward()
+        self.ema_model = self.build_ema()
 
     def build_actor(self):
         # replace model config parameters
         self.args = load_hyperparam(self.args, self.args.actor_config_path)
         self.args.deepspeed_config = self.args.actor_deepspeed_config
-        actor_model = build_and_load(self.args, self.args.actor_target, deepspeed_config=self.args.actor_deepspeed_config,
+        actor_model = build_and_load(self.args, self.args.actor_target,
+                                     deepspeed_config=self.args.actor_deepspeed_config,
                                      pretrained_model_path=self.args.actor_pretrained_model_path,
                                      lora_pretrained_model_path=self.args.actor_lora_pretrained_model_path)
         # get optimizer parameters.
@@ -42,7 +44,8 @@ class RLHFEngine:
     def build_critic(self):
         self.args = load_hyperparam(self.args, self.args.critic_config_path)
         self.args.deepspeed_config = self.args.critic_deepspeed_config
-        critic_model = build_and_load(self.args, self.args.critic_target, deepspeed_config=self.args.critic_deepspeed_config,
+        critic_model = build_and_load(self.args, self.args.critic_target,
+                                      deepspeed_config=self.args.critic_deepspeed_config,
                                       pretrained_model_path=self.args.critic_pretrained_model_path,
                                       lora_pretrained_model_path=self.args.critic_lora_pretrained_model_path)
         # get optimizer parameters.
@@ -77,7 +80,8 @@ class RLHFEngine:
     def build_reward(self):
         self.args = load_hyperparam(self.args, self.args.critic_config_path)
         self.args.deepspeed_config = self.args.reward_deepspeed_config
-        reward_model = build_and_load(self.args, self.args.critic_target, deepspeed_config=self.args.reward_deepspeed_config,
+        reward_model = build_and_load(self.args, self.args.critic_target,
+                                      deepspeed_config=self.args.reward_deepspeed_config,
                                       pretrained_model_path=self.args.critic_pretrained_model_path,
                                       lora_pretrained_model_path=self.args.critic_lora_pretrained_model_path)
 
@@ -88,7 +92,15 @@ class RLHFEngine:
 
     # todo ema
     def build_ema(self):
-        pass
+        if not self.args.use_ema:
+            return None
+        self.args = load_hyperparam(self.args, self.args.actor_config_path)
+        self.args.deepspeed_config = self.args.ref_deepspeed_config
+        ema_model = build_and_load(self.args, self.args.actor_target, deepspeed_config=self.args.ref_deepspeed_config,
+                                   pretrained_model_path=self.args.actor_pretrained_model_path,
+                                   lora_pretrained_model_path=self.args.actor_lora_pretrained_model_path)
 
-    def build_unsupervised(self):
-        pass
+        ema_model, optimizer, _, scheduler = deepspeed.initialize(model=ema_model,
+                                                                  args=self.args,
+                                                                  dist_init_required=False)
+        return ema_model

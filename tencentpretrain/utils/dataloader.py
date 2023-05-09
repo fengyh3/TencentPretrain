@@ -997,7 +997,7 @@ class PPODataloader(Dataloader):
 
             src = []
 
-            max_len_batch = max([len(x) for x in ins])
+            max_len_batch = max([len(x) for x in instances])
             for ins in instances:
                 prompt = ins
                 padding_list = [self.vocab.get(PAD_TOKEN) for i in range(max_len_batch - len(ins))]

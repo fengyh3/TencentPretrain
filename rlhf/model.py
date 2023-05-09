@@ -11,7 +11,7 @@ class Model(nn.Module):
         - target
     """
 
-    def __init__(self, args, embedding, encoder, tgt_embedding, decoder, target):
+    def __init__(self, args, target_name, embedding, encoder, tgt_embedding, decoder, target):
         super(Model, self).__init__()
         self.embedding = embedding
         self.encoder = encoder
@@ -19,11 +19,11 @@ class Model(nn.Module):
         self.decoder = decoder
         self.target = target
 
-        if "mlm" in args.target and args.tie_weights:
+        if "mlm" in target_name and args.tie_weights:
             self.target.mlm.linear_2.weight = self.embedding.word.embedding.weight
-        elif "lm" in args.target and args.tie_weights and "word" in self.embedding.embedding_name_list:
+        elif "lm" in target_name and args.tie_weights and "word" in self.embedding.embedding_name_list:
             self.target.lm.output_layer.weight = self.embedding.word.embedding.weight
-        elif "lm" in args.target and args.tie_weights and "word" in self.tgt_embedding.embedding_name_list:
+        elif "lm" in target_name and args.tie_weights and "word" in self.tgt_embedding.embedding_name_list:
             self.target.lm.output_layer.weight = self.tgt_embedding.word.embedding.weight
 
         if self.decoder is not None and args.share_embedding:
@@ -36,7 +36,7 @@ class Model(nn.Module):
             tgt_emb = self.tgt_embedding(tgt_in, tgt_seg)
             memory_bank = self.decoder(memory_bank, tgt_emb, (seg, tgt_seg))
 
-        if return_logits:
+        if return_logits and hasattr(self.target, "lm"):
             loss_info = self.target.lm.output_layer(memory_bank)
             loss_info = nn.LogSoftmax(dim=-1)(loss_info)
         else:

@@ -5,6 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from tencentpretrain.utils import str2tokenizer, str2dataloader
 from tencentpretrain.opts import *
 from tencentpretrain.utils.seed import set_seed
+from tencentpretrain.utils.logging import init_logger
 from rlhf.RLHFEngine import RLHFEngine
 import deepspeed
 import torch.distributed as dist
@@ -19,7 +20,6 @@ def main():
                         help="Path of the preprocessed dataset.")
     parser.add_argument("--unsupervised_dataset_path", type=str, default=None,
                         help="Path of the preprocessed dataset.")
-
     parser.add_argument("--actor_pretrained_model_path", type=str, default=None,
                         help="Path of the pretrained model.")
     parser.add_argument("--critic_pretrained_model_path", type=str, default=None,
@@ -32,6 +32,8 @@ def main():
                         help="Config file of model hyper-parameters.")
     parser.add_argument("--critic_config_path", type=str, default="models/bert/base_config.json",
                         help="Config file of model hyper-parameters.")
+    parser.add_argument("--use_ema", type=bool, default=False,
+                        help=".")
 
     # Training and saving options.
     parser.add_argument("--total_steps", type=int, default=100000,
@@ -44,6 +46,8 @@ def main():
                         help="Specific steps to accumulate gradient.")
     parser.add_argument("--batch_size", type=int, default=32,
                         help="Training batch size. The actual batch_size is [batch_size x world_size x accumulation_steps].")
+    parser.add_argument("--seq_length", type=int, default=128,
+                        help="Sequence length.")
     parser.add_argument("--instances_buffer_size", type=int, default=25600,
                         help="The buffer size of instances in memory.")
     parser.add_argument("--dropout", type=float, default=0.1, help="Dropout value.")
@@ -106,6 +110,14 @@ def main():
     parser.add_argument("--reward_deepspeed_config", default="models/deepspeed_config.json", type=str,
                         help=".")
 
+    # generate options
+    parser.add_argument("--top_k", type=int, default=50)
+    parser.add_argument("--top_p", type=float, default=1)
+    parser.add_argument("--temperature", type=float, default=1.0)
+    parser.add_argument("--repetition_penalty_range", type=int, default=1024)
+    parser.add_argument("--repetition_penalty_slope", type=float, default=0)
+    parser.add_argument("--repetition_penalty", type=float, default=1)
+
     # lora options.
     lora_opts(parser)
     parser.add_argument("--actor_lora_pretrained_model_path", type=str, default=None,
@@ -125,6 +137,8 @@ def main():
                         help="Max length for span masking.")
 
     args = parser.parse_args()
+
+    args.logger = init_logger(args)
 
     # construct lora dict parameters.
     # todo yuhaofeng, actor and critic lora params is different.

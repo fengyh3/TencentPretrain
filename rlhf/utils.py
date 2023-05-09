@@ -7,6 +7,7 @@ from tencentpretrain.model_builder import build_model
 from tencentpretrain.model_loader import load_model, _load_state_dict_into_model
 from tencentpretrain.utils import *
 import deepspeed
+from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
 from tencentpretrain.embeddings import *
 from tencentpretrain.encoders import *
 from tencentpretrain.decoders import *
@@ -66,7 +67,7 @@ def build_model(args, target_name):
         tmp_target = str2target[tn](args, len(args.tokenizer.vocab))
         target.update(tmp_target, tn)
 
-    model = Model(args, embedding, encoder, tgt_embedding, decoder, target)
+    model = Model(args, target_name, embedding, encoder, tgt_embedding, decoder, target)
 
     return model
 
@@ -120,3 +121,19 @@ def get_scheduler(args, optimizer):
         custom_scheduler = str2scheduler[args.scheduler](optimizer, args.total_steps * args.warmup, args.total_steps)
 
     return custom_scheduler
+
+
+def _zero3_params_to_fetch(param_list):
+    return [p for p in param_list if hasattr(p, 'ds_id') and p.ds_status == ZeroParamStatus.NOT_AVAILABLE]
+
+
+def moving_average(actor, ema, beta=0.992, device=None, zero_stage_3=False):
+    with torch.no_grad():
+        for param, param_ema in zip(actor.parameters(), ema.parameters()):
+            params_to_fetch = _zero3_params_to_fetch([param, param_ema]) if zero_stage_3 else []
+            should_gather_param = len(params_to_fetch) > 0
+            with deepspeed.zero.GatheredParameters(params_to_fetch, enabled=should_gather_param):
+                data = param.data
+                if device is not None:
+                    data = data.to(device)
+                param_ema.data.copy_(torch.lerp(data, param_ema.data, beta))

@@ -2,6 +2,7 @@ import time
 import torch
 import torch.nn.functional as F
 from generate import generate
+from utils import moving_average
 
 
 def gather_log_probs(logits, labels):
@@ -24,7 +25,8 @@ class PPOTrainer:
         self.report_steps = args.report_steps
         self.save_checkpoint_steps = args.save_checkpoint_steps
 
-        self.output_model_path = args.output_model_path
+        self.actor_output_model_path = args.actor_output_model_path
+        self.critic_output_model_path = args.critic_output_model_path
 
         self.start_time = time.time()
         self.total_loss = 0.0
@@ -47,7 +49,7 @@ class PPOTrainer:
             # seq -> [0, 0, prompts, ans, 0, 0...]
             seq = generate(self.rlhf_engine.actor_model, self.args, prompts, eos_id, pad_id)
 
-        self.train()
+        self.set_train()
 
         mask = (seq != pad_id).long()
         prompt_len = prompts.shape[1]
@@ -66,7 +68,7 @@ class PPOTrainer:
             'logprobs': gather_log_probs(actor_output[:, :-1, :], seq[:, 1:]),
             'ref_logprobs': gather_log_probs(ref_output[:, :-1, :], seq[:, 1:]),
             'value': critic_output,
-            'rewards': reward_output,
+            'rewards': reward_output.squeeze(-1),
             'input_ids': seq,
             'attention_mask': mask
         }
@@ -78,14 +80,15 @@ class PPOTrainer:
         while True:
             if self.current_step == self.total_steps + 1:
                 break
-            ppo_batch = list(next(ppo_loader_iter))
+            ppo_batch = next(ppo_loader_iter)
             if self.unsupervised_train_loader is not None:
                 unsupervised_batch = list(next(unsupervised_loader_iter))
 
             if self.gpu_id is not None:
-                for i in range(len(ppo_batch)):
-                    if torch.is_tensor(ppo_batch[i]):
-                        ppo_batch[i] = ppo_batch[i].cuda(self.gpu_id)
+                ppo_batch = ppo_batch.cuda(self.gpu_id)
+                # for i in range(len(ppo_batch)):
+                #     if torch.is_tensor(ppo_batch[i]):
+                #         ppo_batch[i] = ppo_batch[i].cuda(self.gpu_id)
                 if self.unsupervised_train_loader is not None:
                     for i in range(len(unsupervised_batch)):
                         if torch.is_tensor(unsupervised_batch[i]):
@@ -113,7 +116,7 @@ class PPOTrainer:
             actor_probs = self.rlhf_engine.actor_model(seq, None, attention_mask, return_logits=True)
             actor_log_probs = gather_log_probs(actor_probs[:, :-1, :], seq[:, 1:])
             actor_loss = self.actor_loss(actor_log_probs[:, ans_start:], log_probs[:, ans_start:],
-                                         advantages, action_mask[:, ans_start])
+                                         advantages, action_mask[:, ans_start:])
             self.rlhf_engine.actor_model.backward(actor_loss)
             self.rlhf_engine.actor_model.step()
             self.act_loss += actor_loss.item()
@@ -126,14 +129,19 @@ class PPOTrainer:
             self.rlhf_engine.critic_model.step()
             self.cri_loss += critic_loss.item()
 
-            # compute ptx
+            # compute pretrained loss
             if self.unsupervised_train_loader is not None:
                 src, tgt, seg = unsupervised_batch
-                pretrained_loss = self.rlhf_engine.actor_model(src, tgt, seg)
+                pretrained_logits = self.rlhf_engine.actor_model(src, None, seg)
+                pretrained_loss = self.lm_loss(pretrained_logits, tgt, seg)
                 pretrained_loss = self.args.unsup_coef * pretrained_loss
                 self.rlhf_engine.actor_model.backward(pretrained_loss)
                 self.rlhf_engine.actor_model.step()
                 self.pretrained_loss += pretrained_loss.item()
+
+            if self.args.use_ema:
+                moving_average(self.rlhf_engine.actor_model, self.rlhf_engine.ema_model,
+                               zero_stage_3=self.args.enable_zero3)
 
             if self.current_step % self.report_steps == 0 and \
                     (not self.dist_train or (self.dist_train and self.rank == 0)):
